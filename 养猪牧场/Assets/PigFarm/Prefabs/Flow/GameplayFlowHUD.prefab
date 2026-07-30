@@ -4393,6 +4393,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TopBar
       objectReference: {fileID: 0}
+    - target: {fileID: 827725888525274434, guid: 8899132a363f56148aa8de77064d2e58, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1324202884189478465, guid: 8899132a363f56148aa8de77064d2e58, type: 3}
       propertyPath: m_Sprite
       value: 
@@ -5118,7 +5122,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2753686392141338135, guid: 438365d39bb204c4992f2c955a5f32d2, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4577863769573500855, guid: 438365d39bb204c4992f2c955a5f32d2, type: 3}
       propertyPath: m_Pivot.x
