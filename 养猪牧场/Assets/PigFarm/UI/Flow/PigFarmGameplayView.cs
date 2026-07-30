@@ -231,15 +231,15 @@ namespace PigFarm.UI.Flow
             if (!session || !session.Flow.isComplete && session.Flow.totalRounds == 0) return;
             var flow = session.Flow;
             PigFarmRoundTask task = session.CurrentTask;
-            if (stageText) stageText.text = "第" + ChineseNumber(flow.seasonIndex + 1) + "阶段 · 回合" + ChineseNumber(flow.roundInSeason);
+            if (stageText) stageText.text = "�?" + ChineseNumber(flow.seasonIndex + 1) + "阶段 · 回合" + ChineseNumber(flow.roundInSeason);
             if (taskText) taskText.text = task == null ? "等待任务" : task.title + "\n" + task.description;
-            if (rewardText) rewardText.text = task == null ? string.Empty : "本局奖励：" + RewardName(task.rewardType) + " × " + task.rewardAmount;
-            if (resourceText) resourceText.text = "金币 " + flow.coins + "    疫苗 " + session.Vaccines + "    营养剂 " + session.Nutrition + "    护符 " + session.Charms;
+            if (rewardText) rewardText.text = task == null ? string.Empty : "本局奖励�?" + RewardName(task.rewardType) + " × " + task.rewardAmount;
+            if (resourceText) resourceText.text = "金币 " + flow.coins + "    疫苗 " + session.Vaccines + "    营养�? " + session.Nutrition + "    护符 " + session.Charms;
             if (capacityText) capacityText.text = "猪圈占用 " + session.UsedCells + " / " + session.Capacity;
             if (rollRangeText)
             {
                 Vector2Int range = session.CurrentRollRange;
-                rollRangeText.text = session.SelectedActionCount == 0 ? "选择 1～3 种行动" : "可能次数  " + range.x + "～" + range.y;
+                rollRangeText.text = session.SelectedActionCount == 0 ? "选择 1�?3 种行�?" : "可能次数  " + range.x + "�?" + range.y;
             }
             if (messageText) messageText.text = session.LastMessage;
             RefreshHerd();
@@ -275,7 +275,7 @@ namespace PigFarm.UI.Flow
 
             }
 
-            if (herdText) herdText.text = "小星星 " + babies + "   中星星 " + small + "   大星星 " + medium + "   超大星星 " + large + "   已接种 " + vaccinated;
+            if (herdText) herdText.text = "小星�? " + babies + "   中星�? " + small + "   大星�? " + medium + "   超大星星 " + large + "   已接�? " + vaccinated;
 
             if (stars != null)
 
@@ -338,7 +338,7 @@ namespace PigFarm.UI.Flow
             {
                 confirmButton.interactable = canSelect && session.SelectedActionCount > 0;
                 Text label = confirmButton.GetComponentInChildren<Text>();
-                if (label) label.text = "抽取（已选 " + session.SelectedActionCount + "/3）";
+                if (label) label.text = "抽取（已�? " + session.SelectedActionCount + "/3�?";
             }
         }
 
@@ -351,7 +351,7 @@ namespace PigFarm.UI.Flow
             actionPanel.SetActive(show);
             if (!show) return;
             PigFarmActionType action = session.CurrentAction;
-            if (actionTitleText) actionTitleText.text = "行动结果：" + ActionName(action) + " × " + session.CurrentActionRemaining;
+            if (actionTitleText) actionTitleText.text = "行动结果�?" + ActionName(action) + " × " + session.CurrentActionRemaining;
             bool isShop = action == PigFarmActionType.Shop && session.HasRolledAction;
             if (shopPanel) shopPanel.SetActive(false);
             if (primaryActionButton) primaryActionButton.gameObject.SetActive(!isShop && session.HasRolledAction);
@@ -361,12 +361,12 @@ namespace PigFarm.UI.Flow
             if (primaryActionButton)
             {
                 Text label = primaryActionButton.GetComponentInChildren<Text>();
-                if (label) label.text = action == PigFarmActionType.Sell ? "卖出价值最高的猪" : action == PigFarmActionType.Breed ? "普通生育" : "普通喂养";
+                if (label) label.text = action == PigFarmActionType.Sell ? "卖出价值最高的�?" : action == PigFarmActionType.Breed ? "普通生�?" : "普通喂�?";
             }
             if (itemActionButton)
             {
                 Text label = itemActionButton.GetComponentInChildren<Text>();
-                if (label) label.text = action == PigFarmActionType.Breed ? "使用护符生育" : "使用营养剂喂养";
+                if (label) label.text = action == PigFarmActionType.Breed ? "使用护符生育" : "使用营养剂喂�?";
             }
         }
 
@@ -394,12 +394,12 @@ namespace PigFarm.UI.Flow
             if (contextCounterValue) contextCounterValue.text = session.CurrentActionRemaining + "/" + session.CurrentActionTotal;
             if (contextGuideText)
             {
-                if (selecting) contextGuideText.text = "根据你的选择的行动数量，可能会获得不一样的次数机会哦";
+                if (selecting) contextGuideText.text = "根据你的选择的行动数量，可能会获得不一样的次数机会�?";
                 else if (feed) contextGuideText.text = "选择你需要喂养的小猪";
-                else if (breed) contextGuideText.text = "选择可繁殖的中猪或大猪";
-                else if (shop) contextGuideText.text = "进入商店选择需要购买的星星或道具";
-                else if (sell) contextGuideText.text = "进入出售界面选择需要卖出的猪";
-                else if (session.AwaitingRoundEnd) contextGuideText.text = "本回合行动完成，请进行回合结算";
+                else if (breed) contextGuideText.text = "选择可繁殖的中猪或大�?";
+                else if (shop) contextGuideText.text = "进入商店选择需要购买的星星或道�?";
+                else if (sell) contextGuideText.text = "进入出售界面选择需要卖出的�?";
+                else if (session.AwaitingRoundEnd) contextGuideText.text = "本回合行动完成，请进行回合结�?";
                 else contextGuideText.text = "请完成本回合行动";
             }
             if (penActionButton)
@@ -432,10 +432,10 @@ namespace PigFarm.UI.Flow
             int baby, small, medium, large, totalValue;
             session.GetHerdCounts(out baby, out small, out medium, out large, out totalValue);
             if (shopStarCountText)
-                shopStarCountText.text = "小星星 " + baby + "\n中星星 " + small + "\n大星星 " + medium + "\n超大星星 " + large;
-            if (shopTotalValueText) shopTotalValueText.text = "总价值  " + totalValue;
+                shopStarCountText.text = "小星�? " + baby + "\n中星�? " + small + "\n大星�? " + medium + "\n超大星星 " + large;
+            if (shopTotalValueText) shopTotalValueText.text = "总价�?  " + totalValue;
 
-            string[] names = { "小星星", "中星星", "大星星", "超大星星", "营养剂", "护符", "疫苗" };
+            string[] names = { "小星�?", "中星�?", "大星�?", "超大星星", "营养�?", "护符", "疫苗" };
             for (int i = 0; shopButtons != null && i < shopButtons.Length; i++)
             {
                 int price = session.GetShopItemPrice(i);
@@ -507,7 +507,14 @@ namespace PigFarm.UI.Flow
             if (rollResultPanel) rollResultPanel.SetActive(false);
             rolling = false;
             resultRevealed = true;
-            OpenRolledActionScreen();
+            if (session && session.TryAutoEndRoundIfActionImpossible())
+            {
+                resultRevealed = false;
+                ClearStarTargeting();
+                if (shopScreen) shopScreen.SetActive(false);
+                if (sellScreen) sellScreen.SetActive(false);
+            }
+            else OpenRolledActionScreen();
             Refresh();
             rollRoutine = null;
         }
@@ -515,6 +522,7 @@ namespace PigFarm.UI.Flow
         void OpenRolledActionScreen()
         {
             if (!session) return;
+            if (!session.CanPerformCurrentAction()) return;
             if (session.CurrentAction == PigFarmActionType.Shop && shopScreen)
             {
                 shopScreen.transform.SetAsLastSibling();
@@ -539,15 +547,15 @@ namespace PigFarm.UI.Flow
                 if (!visible) continue;
                 Text label = sellPigButtons[i].GetComponentInChildren<Text>();
                 string starName = StarNameForStage(pigs[i].stageId);
-                if (label) label.text = starName + "\n价值 " + pigs[i].value + " 金币";
+                if (label) label.text = starName + "\n价�? " + pigs[i].value + " 金币";
             }
         }
 
         static string StarNameForStage(string stageId)
         {
-            if (stageId == "baby") return "小星星";
-            if (stageId == "small") return "中星星";
-            if (stageId == "medium") return "大星星";
+            if (stageId == "baby") return "小星�?";
+            if (stageId == "small") return "中星�?";
+            if (stageId == "medium") return "大星�?";
             if (stageId == "large") return "超大星星";
             return "星星";
         }
@@ -563,6 +571,10 @@ namespace PigFarm.UI.Flow
 
         void OnRoundResolved(int round, string result)
         {
+            resultRevealed = false;
+            ClearStarTargeting();
+            if (shopScreen) shopScreen.SetActive(false);
+            if (sellScreen) sellScreen.SetActive(false);
             if (transitionPanel) transitionPanel.SetActive(true);
             if (transitionText) transitionText.text = "第 " + round + " 回合结算\n\n" + result + "\n\n下一回合任务已发布";
         }
@@ -663,7 +675,7 @@ namespace PigFarm.UI.Flow
 
                 else
 
-                    messageText.text = useItem ? "请选择要繁殖的星星（将使用护符）" : "请选择要繁殖的大星星或超大星星";
+                    messageText.text = useItem ? "请选择要繁殖的星星（将使用护符�?" : "请选择要繁殖的大星星或超大星星";
 
             }
 
@@ -911,8 +923,8 @@ namespace PigFarm.UI.Flow
             roundUiReady = false;
             var flow = session.Flow;
             PigFarmRoundTask task = session.CurrentTask;
-            if (roundTipStageText) roundTipStageText.text = "第" + ChineseNumber(flow.seasonIndex + 1) + "阶段 · 回合" + ChineseNumber(flow.roundInSeason);
-            if (roundTipTaskText) roundTipTaskText.text = task == null ? "本回合暂无任务" : task.title + "\n" + task.description;
+            if (roundTipStageText) roundTipStageText.text = "�?" + ChineseNumber(flow.seasonIndex + 1) + "阶段 · 回合" + ChineseNumber(flow.roundInSeason);
+            if (roundTipTaskText) roundTipTaskText.text = task == null ? "本回合暂无任�?" : task.title + "\n" + task.description;
             roundTipPanel.transform.SetAsLastSibling();
             roundTipPanel.SetActive(true);
             Refresh();
@@ -942,7 +954,7 @@ namespace PigFarm.UI.Flow
             roundUiReady = false;
             if (openingIntro)
             {
-                openingIntro.Show("欢迎来到养猪牧场！\n请使用初始金币购买星星与道具，\n购买的星星会放入猪圈中。");
+                openingIntro.Show("欢迎来到养猪牧场！\n请使用初始金币购买星星与道具，\n购买的星星会放入猪圈中�?");
             }
             else OpenOpeningShop();
             Refresh();
@@ -978,7 +990,7 @@ namespace PigFarm.UI.Flow
 
         static string ChineseNumber(int value)
         {
-            string[] values = { "零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六" };
+            string[] values = { "�?", "一", "�?", "�?", "�?", "�?", "�?", "�?", "�?", "�?", "�?", "十一", "十二", "十三", "十四", "十五", "十六" };
             return value >= 0 && value < values.Length ? values[value] : value.ToString();
         }
 
@@ -995,16 +1007,16 @@ namespace PigFarm.UI.Flow
 
         static string ActionDescription(PigFarmActionType type)
         {
-            if (type == PigFarmActionType.Breed) return "中猪或大猪可生育小星星；护符可让新生星星直接成为中星星。";
-            if (type == PigFarmActionType.Feed) return "选择可成长的星星提升 1 级；营养剂可以连续成长 2 级。";
-            if (type == PigFarmActionType.Shop) return "每次购买消耗一次行动。星星按价值售卖，道具均为 1 金币。";
-            return "自动卖出当前价值最高的星星，并立刻获得对应金币。";
+            if (type == PigFarmActionType.Breed) return "中猪或大猪可生育小星星；护符可让新生星星直接成为中星星�?";
+            if (type == PigFarmActionType.Feed) return "选择可成长的星星提升 1 级；营养剂可以连续成�? 2 级�?";
+            if (type == PigFarmActionType.Shop) return "每次购买消耗一次行动。星星按价值售卖，道具均为 1 金币�?";
+            return "自动卖出当前价值最高的星星，并立刻获得对应金币�?";
         }
 
         static string RewardName(PigFarmRewardType type)
         {
             if (type == PigFarmRewardType.Coins) return "金币";
-            if (type == PigFarmRewardType.Nutrition) return "营养剂";
+            if (type == PigFarmRewardType.Nutrition) return "营养�?";
             if (type == PigFarmRewardType.Charm) return "护符";
             return "疫苗";
         }

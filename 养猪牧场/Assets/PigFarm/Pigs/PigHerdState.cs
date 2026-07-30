@@ -115,7 +115,7 @@ namespace PigFarm.Pigs
             PigRecord pig = Find(pigId);
             if (pig == null)
             {
-                failure = "没有找到这只�?";
+                failure = "没有找到这坪�?";
                 return false;
             }
 
@@ -126,7 +126,7 @@ namespace PigFarm.Pigs
 
             if (target == pig.stage)
             {
-                failure = pig.stage.displayName + "已经不能继续成长";
+                failure = pig.stage.displayName + "已绝丝能继续戝长";
                 return false;
             }
 
@@ -183,7 +183,7 @@ namespace PigFarm.Pigs
 
         private string CapacityFailure()
         {
-            return "猪圈太挤了，先卖掉几只猪吧！";
+            return "猪圈太挤了，先坖掉几坪猪坧＝";
         }
 
         private void AddUnchecked(PigStageDefinition stage)

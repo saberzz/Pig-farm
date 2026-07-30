@@ -444,6 +444,29 @@ namespace PigFarm.Flow
             return task != null && task.IsComplete(baby, small, medium, large);
         }
 
+        public bool CanPerformCurrentAction()
+        {
+            if (!HasRolledAction || awaitingRoundEnd || gameComplete) return false;
+            if (currentAction == PigFarmActionType.Feed) return CanFeedAny();
+            if (currentAction == PigFarmActionType.Breed) return CanBreedAny();
+            if (currentAction == PigFarmActionType.Sell) return Pigs.Count > 0;
+            if (currentAction == PigFarmActionType.Shop) return Flow.coins >= 1;
+            return false;
+        }
+
+        public bool TryAutoEndRoundIfActionImpossible()
+        {
+            if (!HasRolledAction || awaitingRoundEnd || gameComplete) return false;
+            if (CanPerformCurrentAction()) return false;
+            string actionName = ActionName(currentAction);
+            currentActionRemaining = 0;
+            awaitingRoundEnd = true;
+            lastMessage = "抽到「" + actionName + "」但本回合无法进行，自动结束回合。";
+            Publish();
+            ResolveRound();
+            return true;
+        }
+
         void ConsumeAction()
         {
             currentActionRemaining = Mathf.Max(0, currentActionRemaining - 1);
@@ -451,8 +474,40 @@ namespace PigFarm.Flow
             {
                 awaitingRoundEnd = true;
                 lastMessage += " 本回合行动已完成，请进行回合结算。";
+                Publish();
+                return;
+            }
+            if (!CanPerformCurrentAction())
+            {
+                string actionName = ActionName(currentAction);
+                currentActionRemaining = 0;
+                awaitingRoundEnd = true;
+                lastMessage += " 剩余「" + actionName + "」已无法继续，自动结束回合。";
+                Publish();
+                ResolveRound();
+                return;
             }
             Publish();
+        }
+
+        bool CanFeedAny()
+        {
+            PigSnapshot target;
+            return TryFindGrowablePig(out target);
+        }
+
+        bool CanBreedAny()
+        {
+            PigSnapshot parent;
+            if (!TryFindBreedablePig(out parent)) return false;
+            PigStageDefinition baby = ResolveStage("baby");
+            if (baby && UsedCells + baby.occupiedCells <= Capacity) return true;
+            if (charms > 0)
+            {
+                PigStageDefinition small = ResolveStage("small");
+                if (small && UsedCells + small.occupiedCells <= Capacity) return true;
+            }
+            return false;
         }
 
         void GrantReward(PigFarmRoundTask task)
