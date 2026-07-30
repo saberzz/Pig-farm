@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c5c3cd439afa674eb760d9f1c6512f6, type: 3}
+  m_Name: Medium
+  m_EditorClassIdentifier: 
+  id: medium
+  displayName: "\u4E2D\u732A"
+  value: 10
+  occupiedCells: 9
+  canBreed: 1
+  nextStage: {fileID: 11400000, guid: d2a369be0dad2314f801ae455de57ccd, type: 2}

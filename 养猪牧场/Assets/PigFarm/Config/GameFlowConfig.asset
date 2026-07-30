@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ed3069701c45e648bc954fbb836c179, type: 3}
+  m_Name: GameFlowConfig
+  m_EditorClassIdentifier: 
+  totalRounds: 16
+  roundsPerSeason: 4
+  startingCoins: 18
+  seasonNames:
+  - "\u6625\u5B63"
+  - "\u590F\u5B63"
+  - "\u79CB\u5B63"
+  - "\u51AC\u5B63"

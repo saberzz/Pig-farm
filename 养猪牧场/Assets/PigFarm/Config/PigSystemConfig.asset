@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e6bb0d443d6dab4ea0c3717a1812bd1, type: 3}
+  m_Name: PigSystemConfig
+  m_EditorClassIdentifier: 
+  penCapacity: 80
+  crowdingThreshold: 70
+  babyStage: {fileID: 11400000, guid: 60f0e2ae6f313904687152b029966a4d, type: 2}
+  smallStage: {fileID: 11400000, guid: 45bc8ea58774ba74184a954dbf0e6400, type: 2}
+  startingPigs:
+  - {fileID: 11400000, guid: 60f0e2ae6f313904687152b029966a4d, type: 2}
+  - {fileID: 11400000, guid: 45bc8ea58774ba74184a954dbf0e6400, type: 2}
+  - {fileID: 11400000, guid: 4a9ddc1e9a890904e96293242c1f0dfc, type: 2}
