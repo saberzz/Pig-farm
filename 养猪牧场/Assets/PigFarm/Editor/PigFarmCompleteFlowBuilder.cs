@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.IO;
+using PigFarm.Audio;
 using PigFarm.Core;
 using PigFarm.Flow;
 using PigFarm.Pigs;
@@ -17,10 +18,14 @@ namespace PigFarm.Editor
         const string Root = "Assets/PigFarm";
         const string FlowPrefabFolder = Root + "/Prefabs/Flow";
         const string RulesPath = Root + "/Config/PigFarmGameRules.asset";
+        const string AudioConfigPath = Root + "/Config/PigFarmAudioConfig.asset";
+        const string PrimaryFontPath = "Assets/Fonts/WenYuanRoundedSCVF.ttf";
         const string StartScenePath = Root + "/Scenes/PigFarmStart.unity";
         const string GameScenePath = Root + "/Scenes/PigFarmGame.unity";
         const string StarSourcePath = Root + "/Sprite/123.png";
         const string StarPath = Root + "/Sprite/Generated/123_star.png";
+        const string DotPath = Root + "/Sprite/Generated/tutorial_dot.png";
+        static Font primaryFont;
 
         static readonly Color Ink = new Color(.14f, .12f, .09f, 1f);
         static readonly Color Dark = new Color(.065f, .14f, .10f, 1f);
@@ -37,13 +42,17 @@ namespace PigFarm.Editor
             EnsureFolder(FlowPrefabFolder);
             EnsureFolder(Root + "/Config");
             EnsureFolder(Root + "/Scenes");
+            primaryFont = AssetDatabase.LoadAssetAtPath<Font>(PrimaryFontPath);
+            if (!primaryFont) { Debug.LogError("Missing UI font: " + PrimaryFontPath); return; }
             Sprite star = BuildStarCrop();
+            Sprite dot = BuildDotSprite();
             PigFarmGameRulesConfig rules = BuildRules();
-            GameObject tutorialPrefab = BuildTutorialPrefab(star);
+            PigFarmAudioConfig audio = BuildAudioConfig();
+            GameObject tutorialPrefab = BuildTutorialPrefab(star, dot);
             GameObject startPrefab = BuildStartPrefab(star);
             GameObject gameplayPrefab = BuildGameplayPrefab(star, tutorialPrefab);
-            BuildStartScene(startPrefab);
-            BuildGameScene(gameplayPrefab, rules);
+            BuildStartScene(startPrefab, audio);
+            BuildGameScene(gameplayPrefab, rules, audio);
             EditorBuildSettings.scenes = new[]
             {
                 new EditorBuildSettingsScene(StartScenePath, true),
@@ -54,6 +63,28 @@ namespace PigFarm.Editor
             EditorSceneManager.OpenScene(StartScenePath);
             Selection.activeObject = AssetDatabase.LoadAssetAtPath<SceneAsset>(StartScenePath);
             Debug.Log("Complete Pig Farm flow built: start -> 3 tutorial pages -> 16-round game -> settlement.");
+        }
+
+        static PigFarmAudioConfig BuildAudioConfig()
+        {
+            PigFarmAudioConfig audio = AssetDatabase.LoadAssetAtPath<PigFarmAudioConfig>(AudioConfigPath);
+            if (!audio)
+            {
+                audio = ScriptableObject.CreateInstance<PigFarmAudioConfig>();
+                AssetDatabase.CreateAsset(audio, AudioConfigPath);
+            }
+            audio.gameplayMusic = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音乐/玩法常驻音乐.mp3");
+            audio.uiClick = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/UI通用点击音.mp3");
+            audio.invalidAction = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/UI不可操作按钮.mp3");
+            audio.roll = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/roll机器.mp3");
+            audio.roundTransition = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/回合与季节切换.mp3");
+            audio.trade = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/购买与卖猪.mp3");
+            audio.itemAndVaccine = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/道具与疫苗.mp3");
+            audio.feedAndGrow = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/喂养与猪成长.mp3");
+            audio.breed = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/生育.mp3");
+            audio.taskReward = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/音效/任务完成与领奖.mp3");
+            EditorUtility.SetDirty(audio);
+            return audio;
         }
 
         static PigFarmGameRulesConfig BuildRules()
@@ -152,6 +183,38 @@ namespace PigFarm.Editor
             return AssetDatabase.LoadAssetAtPath<Sprite>(StarPath);
         }
 
+        static Sprite BuildDotSprite()
+        {
+            EnsureFolder(Root + "/Sprite/Generated");
+            const int size = 32;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var pixels = new Color[size * size];
+            Vector2 center = new Vector2((size - 1) * .5f, (size - 1) * .5f);
+            float radius = size * .42f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center);
+                float alpha = Mathf.Clamp01(radius + 1f - distance);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+            texture.SetPixels(pixels);
+            texture.Apply();
+            File.WriteAllBytes(DotPath, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(DotPath, ImportAssetOptions.ForceUpdate);
+            TextureImporter importer = AssetImporter.GetAtPath(DotPath) as TextureImporter;
+            if (importer)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Sprite>(DotPath);
+        }
+
         static GameObject BuildStartPrefab(Sprite star)
         {
             GameObject root = ScreenRoot("StartGameScreen", typeof(PigFarmStartScreen));
@@ -171,7 +234,7 @@ namespace PigFarm.Editor
             return SavePrefab(root, "StartGameScreen.prefab");
         }
 
-        static GameObject BuildTutorialPrefab(Sprite star)
+        static GameObject BuildTutorialPrefab(Sprite star, Sprite dotSprite)
         {
             GameObject root = ScreenRoot("TutorialPopup", typeof(PigFarmTutorialPopup));
             Image(root.transform, "Dim", new Color(0, 0, 0, .74f), Vector2.zero, Vector2.one);
@@ -180,10 +243,16 @@ namespace PigFarm.Editor
             SpriteImage(card.transform, "StarMascot", star, new Vector2(.42f, .70f), new Vector2(.58f, .91f));
             Text title = Label(card.transform, "Title", "", 40, TextAnchor.MiddleCenter, Ink, new Vector2(.10f, .58f), new Vector2(.90f, .72f), true);
             Text body = Label(card.transform, "Body", "", 25, TextAnchor.MiddleCenter, new Color(.27f, .23f, .16f), new Vector2(.10f, .25f), new Vector2(.90f, .58f), false);
-            Text page = Label(card.transform, "Page", "", 20, TextAnchor.MiddleCenter, new Color(.45f, .38f, .27f), new Vector2(.40f, .17f), new Vector2(.60f, .24f), true);
+            Image dotsBackground = Image(card.transform, "PageDots", new Color(.78f, .78f, .78f, 1f), new Vector2(.405f, .165f), new Vector2(.595f, .235f));
+            Image[] dots = new Image[3];
+            for (int i = 0; i < dots.Length; i++)
+            {
+                float x = .235f + i * .22f;
+                dots[i] = SpriteImage(dotsBackground.transform, "Dot" + (i + 1), dotSprite, new Vector2(x, .27f), new Vector2(x + .11f, .73f));
+            }
             Button previous = Button(card.transform, "PreviousButton", "上一页", Green, new Vector2(.09f, .07f), new Vector2(.32f, .17f));
             Button next = Button(card.transform, "NextButton", "下一页", Orange, new Vector2(.68f, .07f), new Vector2(.91f, .17f));
-            root.GetComponent<PigFarmTutorialPopup>().Configure(title, body, page, previous, next,
+            root.GetComponent<PigFarmTutorialPopup>().Configure(title, body, dots, previous, next,
                 new[] { "经营目标", "猪圈与成长", "回合行动" },
                 new[]
                 {
@@ -202,15 +271,29 @@ namespace PigFarm.Editor
             Image(root.transform, "RightRail", new Color(.015f, .035f, .025f), new Vector2(.955f, 0), Vector2.one);
 
             Image top = Image(root.transform, "TopBar", Dark, new Vector2(.05f, .88f), new Vector2(.95f, .99f));
-            Text resources = Label(top.transform, "Resources", "", 24, TextAnchor.MiddleRight, Paper, new Vector2(.40f, .15f), new Vector2(.96f, .85f), true);
+            Text resources = Label(top.transform, "Resources", "", 24, TextAnchor.MiddleRight, Paper, new Vector2(.40f, .15f), new Vector2(.88f, .85f), true);
             Button vaccinate = Button(top.transform, "VaccinateButton", "使用疫苗", Orange, new Vector2(.05f, .18f), new Vector2(.20f, .82f));
+            Image tutorialIcon = SpriteImage(top.transform, "TutorialIcon", star, new Vector2(.91f, .16f), new Vector2(.975f, .84f));
+            Button tutorialButton = tutorialIcon.gameObject.AddComponent<Button>();
+            tutorialButton.targetGraphic = tutorialIcon;
 
             Image left = Image(root.transform, "TaskStage", Cream, new Vector2(.06f, .32f), new Vector2(.285f, .86f));
             Outline(left.gameObject, Ink, 3);
-            Text stage = Label(left.transform, "Stage", "", 32, TextAnchor.MiddleLeft, Ink, new Vector2(.07f, .80f), new Vector2(.93f, .96f), true);
-            Text task = Label(left.transform, "Task", "", 23, TextAnchor.UpperLeft, Ink, new Vector2(.07f, .38f), new Vector2(.93f, .80f), false);
-            Text reward = Label(left.transform, "Reward", "", 21, TextAnchor.MiddleLeft, Orange, new Vector2(.07f, .22f), new Vector2(.93f, .38f), true);
-            Text capacity = Label(left.transform, "Capacity", "", 22, TextAnchor.MiddleLeft, Ink, new Vector2(.07f, .08f), new Vector2(.93f, .22f), true);
+            Image stageTaskSectionImage = Image(left.transform, "StageTaskSection", Paper, new Vector2(.04f, .50f), new Vector2(.96f, .97f));
+            GameObject stageTaskSection = stageTaskSectionImage.gameObject;
+            Text stage = Label(stageTaskSectionImage.transform, "Stage", "", 30, TextAnchor.MiddleLeft, Ink, new Vector2(.07f, .72f), new Vector2(.93f, .97f), true);
+            Image(stageTaskSectionImage.transform, "StageTaskDivider", new Color(.50f, .50f, .48f, 1f), new Vector2(.07f, .68f), new Vector2(.93f, .695f));
+            Text task = Label(stageTaskSectionImage.transform, "Task", "", 20, TextAnchor.UpperLeft, Ink, new Vector2(.07f, .29f), new Vector2(.93f, .66f), false);
+            Text reward = Label(stageTaskSectionImage.transform, "Reward", "", 18, TextAnchor.MiddleLeft, Orange, new Vector2(.07f, .05f), new Vector2(.93f, .28f), true);
+
+            Image contextSectionImage = Image(left.transform, "TaskContextSection", new Color(.86f, .86f, .84f, 1f), new Vector2(.04f, .04f), new Vector2(.96f, .46f));
+            GameObject taskContextSection = contextSectionImage.gameObject;
+            Image counterPanelImage = Image(contextSectionImage.transform, "ContextCounter", new Color(.78f, .78f, .76f, 1f), new Vector2(.04f, .57f), new Vector2(.96f, .96f));
+            GameObject counterPanel = counterPanelImage.gameObject;
+            Text counterLabel = Label(counterPanelImage.transform, "CounterLabel", "行动次数", 19, TextAnchor.MiddleLeft, Ink, new Vector2(.07f, .05f), new Vector2(.65f, .95f), true);
+            Text counterValue = Label(counterPanelImage.transform, "CounterValue", "0/0", 22, TextAnchor.MiddleRight, Ink, new Vector2(.64f, .05f), new Vector2(.93f, .95f), true);
+            Text contextGuide = Label(contextSectionImage.transform, "ContextGuide", "", 17, TextAnchor.MiddleLeft, Ink, new Vector2(.06f, .05f), new Vector2(.94f, .52f), false);
+            Text capacity = null;
 
             Image pen = Image(root.transform, "Pen", Paper, new Vector2(.31f, .40f), new Vector2(.94f, .86f));
             Outline(pen.gameObject, Ink, 3);
@@ -226,6 +309,7 @@ namespace PigFarm.Editor
                 stars[i].color = new Color(1f, 1f, 1f, .92f);
             }
             Text herd = Label(pen.transform, "HerdSummary", "", 21, TextAnchor.LowerCenter, Ink, new Vector2(.05f, .01f), new Vector2(.95f, .13f), true);
+            Button penActionButton = Button(root.transform, "PenActionButton", "喂养", new Color(.38f, .38f, .38f), new Vector2(.835f, .30f), new Vector2(.915f, .39f));
 
             Image actionsArea = Image(root.transform, "ActionArea", new Color(.89f, .89f, .86f), new Vector2(.06f, .055f), new Vector2(.94f, .29f));
             Text range = Label(actionsArea.transform, "RollRange", "", 24, TextAnchor.MiddleLeft, Ink, new Vector2(.03f, .72f), new Vector2(.40f, .96f), true);
@@ -256,12 +340,35 @@ namespace PigFarm.Editor
             Button restart;
             BuildFinalModal(root.transform, out final, out finalText, out restart);
 
+            GameObject roundTip;
+            Text roundTipStage, roundTipTask;
+            BuildRoundTipModal(root.transform, out roundTip, out roundTipStage, out roundTipTask);
+
+            GameObject rollResult;
+            Text rollAction, rollNumber;
+            BuildRollResultModal(root.transform, out rollResult, out rollAction, out rollNumber);
+
+            GameObject shopScreen;
+            Button shopClose;
+            Button[] fullShopButtons;
+            BuildShopScreen(root.transform, out shopScreen, out shopClose, out fullShopButtons);
+
+            GameObject sellScreen;
+            Button sellClose;
+            Button[] sellPigButtons;
+            BuildSellScreen(root.transform, out sellScreen, out sellClose, out sellPigButtons);
+
             GameObject tutorialInstance = (GameObject)PrefabUtility.InstantiatePrefab(tutorialPrefab, root.transform);
             Rect(tutorialInstance.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
             PigFarmTutorialPopup tutorial = tutorialInstance.GetComponent<PigFarmTutorialPopup>();
             root.GetComponent<PigFarmGameplayView>().Configure(null, tutorial, stage, task, reward, resources, capacity, herd,
                 range, message, stars, actionButtons, confirm, actionModal, actionTitle, actionBody, primary, item, shop,
-                shopButtons, settle, vaccinate, transition, transitionText, transitionContinue, final, finalText, restart);
+                fullShopButtons, settle, vaccinate, transition, transitionText, transitionContinue, final, finalText, restart,
+                roundTip, roundTipStage, roundTipTask);
+            root.GetComponent<PigFarmGameplayView>().ConfigureRoundContext(tutorialButton, stageTaskSection, taskContextSection,
+                counterPanel, counterLabel, counterValue, contextGuide, penActionButton);
+            root.GetComponent<PigFarmGameplayView>().ConfigureActionScreens(rollResult, rollAction, rollNumber,
+                shopScreen, shopClose, sellScreen, sellClose, sellPigButtons);
             return SavePrefab(root, "GameplayFlowHUD.prefab");
         }
 
@@ -298,6 +405,77 @@ namespace PigFarm.Editor
             continueButton = Button(card.transform, "ContinueButton", "继续", Orange, new Vector2(.31f, .08f), new Vector2(.69f, .21f));
         }
 
+        static void BuildRoundTipModal(Transform parent, out GameObject root, out Text stage, out Text task)
+        {
+            root = ScreenRoot("RoundStartTip");
+            root.transform.SetParent(parent, false);
+            Image(root.transform, "InputBlocker", new Color(0f, 0f, 0f, .08f), Vector2.zero, Vector2.one);
+            Image card = Image(root.transform, "TipCard", new Color(.82f, .82f, .82f, .97f), new Vector2(.33f, .39f), new Vector2(.67f, .61f));
+            Outline(card.gameObject, new Color(1f, 1f, 1f, .75f), 3);
+            stage = Label(card.transform, "StageAndRound", "第一阶段 · 回合一", 38, TextAnchor.MiddleCenter, Color.black,
+                new Vector2(.06f, .56f), new Vector2(.94f, .94f), true);
+            task = Label(card.transform, "RandomTask", "随机任务", 23, TextAnchor.UpperCenter, new Color(.12f, .12f, .12f),
+                new Vector2(.08f, .08f), new Vector2(.92f, .58f), false);
+        }
+
+        static void BuildRollResultModal(Transform parent, out GameObject root, out Text action, out Text number)
+        {
+            root = ScreenRoot("RollResultPanel");
+            root.transform.SetParent(parent, false);
+            Image(root.transform, "Dim", new Color(.15f, .15f, .15f, .62f), Vector2.zero, Vector2.one);
+            Image card = Image(root.transform, "RollCard", new Color(.86f, .86f, .86f, 1f), new Vector2(.25f, .25f), new Vector2(.75f, .75f));
+            Image actionBlock = Image(card.transform, "ActionImagePlaceholder", new Color(.22f, .22f, .22f, 1f), new Vector2(.07f, .13f), new Vector2(.49f, .87f));
+            action = Label(actionBlock.transform, "RollingAction", "?", 54, TextAnchor.MiddleCenter, Color.white, new Vector2(.05f, .05f), new Vector2(.95f, .95f), true);
+            Label(card.transform, "本轮行动", 27, TextAnchor.MiddleCenter, Color.black, new Vector2(.56f, .68f), new Vector2(.94f, .86f), true);
+            Image numberBlock = Image(card.transform, "NumberBlock", Color.white, new Vector2(.59f, .32f), new Vector2(.90f, .66f));
+            number = Label(numberBlock.transform, "RollingNumber", "0", 70, TextAnchor.MiddleCenter, Color.black, new Vector2(.05f, .05f), new Vector2(.95f, .95f), true);
+        }
+
+        static void BuildShopScreen(Transform parent, out GameObject root, out Button close, out Button[] items)
+        {
+            root = ScreenRoot("ShopScreen");
+            root.transform.SetParent(parent, false);
+            Image(root.transform, "Background", Paper, Vector2.zero, Vector2.one);
+            Image header = Image(root.transform, "Header", new Color(.64f, .64f, .64f, 1f), new Vector2(0, .86f), Vector2.one);
+            Label(header.transform, "商店", 48, TextAnchor.MiddleLeft, Color.white, new Vector2(.04f, .08f), new Vector2(.35f, .92f), true);
+            Label(root.transform, "猪猪", 28, TextAnchor.MiddleLeft, Ink, new Vector2(.06f, .72f), new Vector2(.30f, .84f), true);
+            Image pigRow = Image(root.transform, "PigProducts", new Color(.85f, .85f, .85f, 1f), new Vector2(.06f, .49f), new Vector2(.94f, .74f));
+            Label(root.transform, "道具", 28, TextAnchor.MiddleLeft, Ink, new Vector2(.06f, .38f), new Vector2(.30f, .48f), true);
+            Image itemRow = Image(root.transform, "ItemProducts", new Color(.85f, .85f, .85f, 1f), new Vector2(.06f, .15f), new Vector2(.94f, .40f));
+            items = new Button[4];
+            items[0] = ProductButton(pigRow.transform, "BuyBabyPig", "猪宝宝\n3 金币", .03f);
+            items[1] = ProductButton(itemRow.transform, "BuyNutrition", "营养剂\n1 金币", .03f);
+            items[2] = ProductButton(itemRow.transform, "BuyCharm", "护符\n1 金币", .25f);
+            items[3] = ProductButton(itemRow.transform, "BuyVaccine", "疫苗\n1 金币", .47f);
+            close = Button(root.transform, "CloseShopButton", "离开商店", new Color(.56f, .56f, .56f), new Vector2(.75f, .035f), new Vector2(.94f, .115f));
+        }
+
+        static Button ProductButton(Transform parent, string name, string label, float x)
+        {
+            return Button(parent, name, label, new Color(.52f, .52f, .52f), new Vector2(x, .10f), new Vector2(x + .18f, .90f));
+        }
+
+        static void BuildSellScreen(Transform parent, out GameObject root, out Button close, out Button[] pigButtons)
+        {
+            root = ScreenRoot("SellScreen");
+            root.transform.SetParent(parent, false);
+            Image(root.transform, "Background", Paper, Vector2.zero, Vector2.one);
+            Image header = Image(root.transform, "Header", new Color(.64f, .64f, .64f, 1f), new Vector2(0, .86f), Vector2.one);
+            Label(header.transform, "出售", 48, TextAnchor.MiddleLeft, Color.white, new Vector2(.04f, .08f), new Vector2(.35f, .92f), true);
+            Label(root.transform, "选择要出售的猪猪", 28, TextAnchor.MiddleLeft, Ink, new Vector2(.06f, .73f), new Vector2(.55f, .84f), true);
+            Image row = Image(root.transform, "SellPigList", new Color(.85f, .85f, .85f, 1f), new Vector2(.06f, .34f), new Vector2(.94f, .74f));
+            pigButtons = new Button[8];
+            for (int i = 0; i < pigButtons.Length; i++)
+            {
+                int column = i % 4;
+                int line = i / 4;
+                float x = .025f + column * .245f;
+                float y = line == 0 ? .53f : .08f;
+                pigButtons[i] = Button(row.transform, "SellPig" + i, "猪猪\n价值 0 金币", new Color(.52f, .52f, .52f), new Vector2(x, y), new Vector2(x + .21f, y + .39f));
+            }
+            close = Button(root.transform, "CloseSellButton", "离开出售", new Color(.56f, .56f, .56f), new Vector2(.75f, .06f), new Vector2(.94f, .14f));
+        }
+
         static void BuildFinalModal(Transform parent, out GameObject root, out Text text, out Button restart)
         {
             root = ScreenRoot("FinalSettlementModal");
@@ -308,20 +486,22 @@ namespace PigFarm.Editor
             restart = Button(root.transform, "RestartButton", "返回开始界面", Orange, new Vector2(.39f, .22f), new Vector2(.61f, .32f));
         }
 
-        static void BuildStartScene(GameObject prefab)
+        static void BuildStartScene(GameObject prefab, PigFarmAudioConfig audio)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             CreateEnvironment();
+            CreateAudioSystem(audio);
             GameObject canvas = CreateCanvas("StartCanvas");
             PrefabUtility.InstantiatePrefab(prefab, canvas.transform);
             CreateEventSystem();
             EditorSceneManager.SaveScene(scene, StartScenePath);
         }
 
-        static void BuildGameScene(GameObject prefab, PigFarmGameRulesConfig rules)
+        static void BuildGameScene(GameObject prefab, PigFarmGameRulesConfig rules, PigFarmAudioConfig audio)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             CreateEnvironment();
+            CreateAudioSystem(audio);
             GameFlowConfig flowConfig = AssetDatabase.LoadAssetAtPath<GameFlowConfig>(Root + "/Config/GameFlowConfig.asset");
             PigSystemConfig pigConfig = AssetDatabase.LoadAssetAtPath<PigSystemConfig>(Root + "/Config/PigSystemConfig.asset");
             GameObject systems = new GameObject("GameSystems");
@@ -349,6 +529,12 @@ namespace PigFarm.Editor
             GameObject light = new GameObject("Directional Light", typeof(Light));
             light.transform.rotation = Quaternion.Euler(50, -30, 0);
             light.GetComponent<Light>().type = LightType.Directional;
+        }
+
+        static void CreateAudioSystem(PigFarmAudioConfig audio)
+        {
+            GameObject go = new GameObject("AudioSystem", typeof(AudioSource), typeof(AudioSource));
+            go.AddComponent<PigFarmAudioService>().Configure(audio);
         }
 
         static GameObject CreateCanvas(string name)
@@ -400,7 +586,7 @@ namespace PigFarm.Editor
             go.transform.SetParent(parent, false);
             Rect(go.GetComponent<RectTransform>(), min, max);
             Text text = go.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.font = primaryFont ? primaryFont : Resources.GetBuiltinResource<Font>("Arial.ttf");
             text.text = value;
             text.fontSize = size;
             text.alignment = anchor;

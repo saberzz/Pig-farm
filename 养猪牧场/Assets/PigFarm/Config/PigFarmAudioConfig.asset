@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d6de37f90e84714c8d3936500f53ce1, type: 3}
+  m_Name: PigFarmAudioConfig
+  m_EditorClassIdentifier: 
+  gameplayMusic: {fileID: 8300000, guid: 8a1d33da82ffff949a92d8b73e4b0d65, type: 3}
+  musicVolume: 0.35
+  uiClick: {fileID: 8300000, guid: cb5be5e71f41fe843a0cc110e87e51d8, type: 3}
+  invalidAction: {fileID: 8300000, guid: 67cd00a7a866eb14cb9b8ebce643f507, type: 3}
+  roll: {fileID: 8300000, guid: 3afad2089531e20448a25102760f869a, type: 3}
+  roundTransition: {fileID: 8300000, guid: f378228caec20a04b9d8fc17bc9f4510, type: 3}
+  trade: {fileID: 8300000, guid: 88ec04d8f62ebf34da464c1922714dd0, type: 3}
+  itemAndVaccine: {fileID: 8300000, guid: ea1ce3a321b17be48872b9f0e7600383, type: 3}
+  feedAndGrow: {fileID: 8300000, guid: 6109b337d90f15540a928c543233c190, type: 3}
+  breed: {fileID: 8300000, guid: 1d07485ab1d28b243b2b0a022b45cc32, type: 3}
+  taskReward: {fileID: 8300000, guid: 4c20aa419ad8327429d11940632d92a4, type: 3}
+  effectsVolume: 0.8

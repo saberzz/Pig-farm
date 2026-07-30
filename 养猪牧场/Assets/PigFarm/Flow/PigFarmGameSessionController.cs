@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PigFarm.Audio;
 using PigFarm.Core;
 using PigFarm.Pigs;
 using UnityEngine;
@@ -15,12 +16,14 @@ namespace PigFarm.Flow
         readonly bool[] selectedActions = new bool[4];
         PigFarmActionType currentAction;
         int currentActionRemaining;
+        int currentActionTotal;
         int nutrition;
         int charms;
         int vaccines;
         string lastMessage;
         bool awaitingRoundEnd;
         bool gameComplete;
+        PigFarmRoundTask currentTask;
 
         public event Action Changed;
         public event Action<string> NoticeRequested;
@@ -38,12 +41,13 @@ namespace PigFarm.Flow
         public int Charms { get { return charms; } }
         public int Vaccines { get { return vaccines; } }
         public int CurrentActionRemaining { get { return currentActionRemaining; } }
+        public int CurrentActionTotal { get { return currentActionTotal; } }
         public PigFarmActionType CurrentAction { get { return currentAction; } }
         public bool HasRolledAction { get { return currentActionRemaining > 0; } }
         public bool AwaitingRoundEnd { get { return awaitingRoundEnd; } }
         public bool IsGameComplete { get { return gameComplete; } }
         public string LastMessage { get { return lastMessage; } }
-        public PigFarmRoundTask CurrentTask { get { return rules ? rules.GetTask(Flow.round) : null; } }
+        public PigFarmRoundTask CurrentTask { get { return currentTask != null ? currentTask : rules ? rules.GetTask(Flow.round) : null; } }
 
         public void Configure(PigFarmGameRulesConfig value, GameFlowController flow, PigHerdController herdController)
         {
@@ -57,6 +61,7 @@ namespace PigFarm.Flow
             nutrition = rules ? rules.startingNutrition : 0;
             charms = rules ? rules.startingCharms : 0;
             vaccines = rules ? rules.startingVaccines : 0;
+            SelectRandomTaskForCurrentStage();
             if (herd)
             {
                 herd.HerdChanged += Publish;
@@ -114,7 +119,9 @@ namespace PigFarm.Flow
             currentAction = options[UnityEngine.Random.Range(0, options.Count)];
             Vector2Int range = CurrentRollRange;
             currentActionRemaining = UnityEngine.Random.Range(range.x, range.y + 1);
+            currentActionTotal = currentActionRemaining;
             lastMessage = "本回合抽到「" + ActionName(currentAction) + "」× " + currentActionRemaining;
+            PigFarmAudioService.Play(PigFarmAudioCue.Roll);
             ActionRolled?.Invoke(currentAction, currentActionRemaining);
             Publish();
         }
@@ -151,7 +158,15 @@ namespace PigFarm.Flow
                     success = true;
                 }
             }
-            if (success) ConsumeAction();
+            if (success)
+            {
+                if (currentAction == PigFarmActionType.Breed) PigFarmAudioService.Play(PigFarmAudioCue.Breed);
+                else if (currentAction == PigFarmActionType.Feed) PigFarmAudioService.Play(PigFarmAudioCue.FeedAndGrow);
+                else if (currentAction == PigFarmActionType.Sell) PigFarmAudioService.Play(PigFarmAudioCue.Trade);
+                if (useItem && (currentAction == PigFarmActionType.Breed || currentAction == PigFarmActionType.Feed))
+                    PigFarmAudioService.Play(PigFarmAudioCue.ItemAndVaccine);
+                ConsumeAction();
+            }
         }
 
         public void BuyShopItem(int itemIndex)
@@ -168,6 +183,27 @@ namespace PigFarm.Flow
             if (!success) return;
             gameFlow.AddCoins(-price);
             lastMessage = "购买成功，花费 " + price + " 金币。";
+            PigFarmAudioService.Play(PigFarmAudioCue.Trade);
+            ConsumeAction();
+        }
+
+        public void SellPig(int pigId)
+        {
+            if (!HasRolledAction || currentAction != PigFarmActionType.Sell || awaitingRoundEnd || gameComplete) return;
+            PigSnapshot target = default(PigSnapshot);
+            bool found = false;
+            IReadOnlyList<PigSnapshot> pigs = Pigs;
+            for (int i = 0; i < pigs.Count; i++)
+            {
+                if (pigs[i].id != pigId) continue;
+                target = pigs[i];
+                found = true;
+                break;
+            }
+            if (!found || !herd || !herd.RemovePig(pigId)) { Fail("这只猪当前无法出售。"); return; }
+            gameFlow.AddCoins(target.value);
+            lastMessage = "卖出「" + target.stageName + "」，获得 " + target.value + " 金币。";
+            PigFarmAudioService.Play(PigFarmAudioCue.Trade);
             ConsumeAction();
         }
 
@@ -177,6 +213,7 @@ namespace PigFarm.Flow
             if (!herd || !herd.VaccinateFirstUnvaccinated()) { Fail("所有猪都已经接种疫苗。"); return; }
             vaccines--;
             lastMessage = "一只猪完成了疫苗接种。";
+            PigFarmAudioService.Play(PigFarmAudioCue.ItemAndVaccine);
             Publish();
         }
 
@@ -186,7 +223,12 @@ namespace PigFarm.Flow
             int completedRound = Flow.round;
             PigFarmRoundTask task = CurrentTask;
             bool completed = task != null && IsTaskComplete(task);
-            if (completed) GrantReward(task);
+            if (completed)
+            {
+                GrantReward(task);
+                PigFarmAudioService.Play(PigFarmAudioCue.TaskReward);
+            }
+            PigFarmAudioService.Play(PigFarmAudioCue.RoundTransition);
             string resolution = completed ? "任务完成，奖励已到账。" : "任务未完成，本回合没有奖励。";
 
             int culled = 0;
@@ -211,6 +253,7 @@ namespace PigFarm.Flow
             }
 
             gameFlow.AdvanceRound();
+            SelectRandomTaskForCurrentStage();
             awaitingRoundEnd = false;
             ResetSelection();
             lastMessage = resolution + " 新回合任务已经发布。";
@@ -254,6 +297,19 @@ namespace PigFarm.Flow
         {
             for (int i = 0; i < selectedActions.Length; i++) selectedActions[i] = false;
             currentActionRemaining = 0;
+            currentActionTotal = 0;
+        }
+
+        void SelectRandomTaskForCurrentStage()
+        {
+            if (!rules || rules.roundTasks == null || rules.roundTasks.Length == 0)
+            {
+                currentTask = null;
+                return;
+            }
+            int stageStart = Mathf.Clamp(Flow.seasonIndex * 4, 0, rules.roundTasks.Length - 1);
+            int stageEnd = Mathf.Min(stageStart + 4, rules.roundTasks.Length);
+            currentTask = rules.roundTasks[UnityEngine.Random.Range(stageStart, stageEnd)];
         }
 
         bool TryFindGrowablePig(out PigSnapshot result)
@@ -285,6 +341,7 @@ namespace PigFarm.Flow
         void Fail(string message)
         {
             lastMessage = message;
+            PigFarmAudioService.Play(PigFarmAudioCue.InvalidAction);
             NoticeRequested?.Invoke(message);
             Publish();
         }

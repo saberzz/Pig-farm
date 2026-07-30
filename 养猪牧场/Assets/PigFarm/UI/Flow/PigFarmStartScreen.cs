@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using PigFarm.Audio;
 
 namespace PigFarm.UI.Flow
 {
@@ -17,6 +18,10 @@ namespace PigFarm.UI.Flow
 
         void OnEnable() { if (startButton) startButton.onClick.AddListener(StartGame); }
         void OnDisable() { if (startButton) startButton.onClick.RemoveListener(StartGame); }
-        void StartGame() { SceneManager.LoadScene(gameplaySceneName); }
+        void StartGame()
+        {
+            PigFarmAudioService.Play(PigFarmAudioCue.UiClick);
+            SceneManager.LoadScene(gameplaySceneName);
+        }
     }
 }
