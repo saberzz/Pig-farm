@@ -75,6 +75,16 @@ namespace PigFarm.Pigs
             return true;
         }
 
+        public bool AddBabyPig()
+        {
+            if (state == null) return false;
+            bool wasCrowded = state.IsCrowded;
+            string failure;
+            if (!state.TryAdd(config.babyStage, out failure)) return Fail(failure);
+            Changed(wasCrowded);
+            return true;
+        }
+
         public bool RemovePig(int pigId)
         {
             if (state == null)
@@ -84,6 +94,23 @@ namespace PigFarm.Pigs
                 return Fail("没有找到这只猪");
             HerdChanged?.Invoke();
             return true;
+        }
+
+        public bool VaccinateFirstUnvaccinated()
+        {
+            if (state == null) return false;
+            PigSnapshot pig;
+            if (!state.TryVaccinateFirstUnvaccinated(out pig)) return false;
+            HerdChanged?.Invoke();
+            return true;
+        }
+
+        public int CullUnvaccinated()
+        {
+            if (state == null) return 0;
+            int removed = state.CullUnvaccinated();
+            if (removed > 0) HerdChanged?.Invoke();
+            return removed;
         }
 
         public void EnterPenView()

@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 2cda990e2423bbf4892e6590ba056729
+    path: Assets/PigFarm/Scenes/PigFarmStart.unity
+    guid: 2854b821c3999f643b9072fb6fa49463
+  - enabled: 1
+    path: Assets/PigFarm/Scenes/PigFarmGame.unity
+    guid: ac014ef9d41337a418d2c476d46b8f45
   m_configObjects: {}

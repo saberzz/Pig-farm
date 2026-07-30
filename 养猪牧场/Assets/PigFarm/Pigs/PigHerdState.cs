@@ -151,6 +151,26 @@ namespace PigFarm.Pigs
             return true;
         }
 
+        public bool TryVaccinateFirstUnvaccinated(out PigSnapshot vaccinatedPig)
+        {
+            PigRecord pig = pigs.Find(item => !item.vaccinated);
+            if (pig == null)
+            {
+                vaccinatedPig = default(PigSnapshot);
+                return false;
+            }
+            pig.vaccinated = true;
+            vaccinatedPig = Snapshot(pig);
+            return true;
+        }
+
+        public int CullUnvaccinated()
+        {
+            int before = pigs.Count;
+            pigs.RemoveAll(pig => !pig.vaccinated);
+            return before - pigs.Count;
+        }
+
         private bool CanFitDelta(int delta)
         {
             return UsedCells + Math.Max(0, delta) <= config.penCapacity;
