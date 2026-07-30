@@ -23,6 +23,8 @@ namespace PigFarm.Flow
         string lastMessage;
         bool awaitingRoundEnd;
         bool gameComplete;
+        bool openingShopActive;
+        int openingPurchaseCount;
         PigFarmRoundTask currentTask;
 
         public event Action Changed;
@@ -46,6 +48,8 @@ namespace PigFarm.Flow
         public bool HasRolledAction { get { return currentActionRemaining > 0; } }
         public bool AwaitingRoundEnd { get { return awaitingRoundEnd; } }
         public bool IsGameComplete { get { return gameComplete; } }
+        public bool IsOpeningShopActive { get { return openingShopActive; } }
+        public int OpeningPurchaseCount { get { return openingPurchaseCount; } }
         public string LastMessage { get { return lastMessage; } }
         public PigFarmRoundTask CurrentTask { get { return currentTask != null ? currentTask : rules ? rules.GetTask(Flow.round) : null; } }
 
@@ -64,11 +68,12 @@ namespace PigFarm.Flow
             SelectRandomTaskForCurrentStage();
             if (herd)
             {
+                herd.ClearHerd();
                 herd.HerdChanged += Publish;
                 herd.OperationFailed += Fail;
                 herd.EnterPenView();
             }
-            lastMessage = "请选择 1～3 种行动，再由命运决定本回合行动。";
+            lastMessage = "请先完成初始采购，再开始本回合行动。";
             Publish();
         }
 
@@ -95,7 +100,7 @@ namespace PigFarm.Flow
 
         public void ToggleAction(PigFarmActionType type)
         {
-            if (HasRolledAction || awaitingRoundEnd || gameComplete) return;
+            if (openingShopActive || HasRolledAction || awaitingRoundEnd || gameComplete) return;
             int index = (int)type;
             if (!selectedActions[index] && SelectedActionCount >= 3)
             {
@@ -109,7 +114,7 @@ namespace PigFarm.Flow
         public void ConfirmActionSelection()
         {
             int count = SelectedActionCount;
-            if (count == 0 || HasRolledAction || awaitingRoundEnd || gameComplete)
+            if (openingShopActive || count == 0 || HasRolledAction || awaitingRoundEnd || gameComplete)
             {
                 Fail("请先选择至少 1 种行动。");
                 return;
@@ -127,64 +132,229 @@ namespace PigFarm.Flow
         }
 
         public void ExecutePrimaryAction(bool useItem)
+
         {
+
             if (!HasRolledAction || awaitingRoundEnd || gameComplete) return;
-            bool success = false;
+
             if (currentAction == PigFarmActionType.Breed)
+
             {
-                bool useCharm = useItem && charms > 0;
-                success = herd && herd.BirthPig(useCharm);
-                if (success && useCharm) charms--;
+
+                PigSnapshot parent;
+
+                if (!TryFindBreedablePig(out parent)) Fail("当前没有可以繁殖的星星。");
+
+                else ExecuteBreedOnPig(parent.id, useItem);
+
+                return;
+
             }
-            else if (currentAction == PigFarmActionType.Feed)
+
+            if (currentAction == PigFarmActionType.Feed)
+
             {
+
                 PigSnapshot target;
-                if (!TryFindGrowablePig(out target)) Fail("当前没有可以继续成长的猪。");
-                else
-                {
-                    bool useNutrition = useItem && nutrition > 0;
-                    success = herd.GrowPig(target.id, useNutrition);
-                    if (success && useNutrition) nutrition--;
-                }
+
+                if (!TryFindGrowablePig(out target)) Fail("当前没有可以继续成长的星星。");
+
+                else ExecuteFeedOnPig(target.id, useItem);
+
+                return;
+
             }
-            else if (currentAction == PigFarmActionType.Sell)
+
+            if (currentAction == PigFarmActionType.Sell)
+
             {
+
                 PigSnapshot target;
-                if (!TryFindHighestValuePig(out target)) Fail("猪圈里没有可以卖出的猪。");
-                else if (herd.RemovePig(target.id))
-                {
-                    gameFlow.AddCoins(target.value);
-                    lastMessage = "卖出「" + target.stageName + "」，获得 " + target.value + " 金币。";
-                    success = true;
-                }
-            }
-            if (success)
-            {
-                if (currentAction == PigFarmActionType.Breed) PigFarmAudioService.Play(PigFarmAudioCue.Breed);
-                else if (currentAction == PigFarmActionType.Feed) PigFarmAudioService.Play(PigFarmAudioCue.FeedAndGrow);
-                else if (currentAction == PigFarmActionType.Sell) PigFarmAudioService.Play(PigFarmAudioCue.Trade);
-                if (useItem && (currentAction == PigFarmActionType.Breed || currentAction == PigFarmActionType.Feed))
-                    PigFarmAudioService.Play(PigFarmAudioCue.ItemAndVaccine);
+
+                if (!TryFindHighestValuePig(out target)) { Fail("猪圈里没有可以卖出的星星。"); return; }
+
+                if (!herd || !herd.RemovePig(target.id)) return;
+
+                gameFlow.AddCoins(target.value);
+
+                lastMessage = "卖出「" + StarDisplayNameByStage(target.stageId) + "」，获得 " + target.value + " 金币。";
+
+                PigFarmAudioService.Play(PigFarmAudioCue.Trade);
+
                 ConsumeAction();
+
+            }
+
+        }
+
+
+
+        public bool ExecuteFeedOnPig(int pigId, bool useItem)
+
+        {
+
+            if (!HasRolledAction || currentAction != PigFarmActionType.Feed || awaitingRoundEnd || gameComplete) return false;
+
+            PigSnapshot target;
+
+            if (!TryGetPig(pigId, out target)) { Fail("没有找到这颗星星。"); return false; }
+
+            if (!target.canGrow) { Fail("这颗星星已经不能继续成长。"); return false; }
+
+            bool useNutrition = useItem && nutrition > 0;
+
+            if (!herd || !herd.GrowPig(pigId, useNutrition)) return false;
+
+            if (useNutrition) nutrition--;
+
+            lastMessage = "喂养「" + StarDisplayNameByStage(target.stageId) + "」成功" + (useNutrition ? "（使用营养剂）" : "") + "。";
+
+            PigFarmAudioService.Play(PigFarmAudioCue.FeedAndGrow);
+
+            if (useNutrition) PigFarmAudioService.Play(PigFarmAudioCue.ItemAndVaccine);
+
+            ConsumeAction();
+
+            return true;
+
+        }
+
+
+
+        public bool ExecuteBreedOnPig(int parentPigId, bool useItem)
+
+        {
+
+            if (!HasRolledAction || currentAction != PigFarmActionType.Breed || awaitingRoundEnd || gameComplete) return false;
+
+            PigSnapshot parent;
+
+            if (!TryGetPig(parentPigId, out parent)) { Fail("没有找到这颗星星。"); return false; }
+
+            if (!parent.canBreed) { Fail("请选择可繁殖的大星星或超大星星。"); return false; }
+
+            bool useCharm = useItem && charms > 0;
+
+            if (!herd || !herd.BirthPig(useCharm)) return false;
+
+            if (useCharm) charms--;
+
+            lastMessage = "「" + StarDisplayNameByStage(parent.stageId) + "」繁殖成功" + (useCharm ? "（使用护符）" : "") + "。";
+
+            PigFarmAudioService.Play(PigFarmAudioCue.Breed);
+
+            if (useCharm) PigFarmAudioService.Play(PigFarmAudioCue.ItemAndVaccine);
+
+            ConsumeAction();
+
+            return true;
+
+        }
+
+
+
+        public void BeginOpeningShop()
+        {
+            openingShopActive = true;
+            openingPurchaseCount = 0;
+            lastMessage = "使用初始金币购买星星与道具，完成后离开商店。";
+            Publish();
+        }
+
+        public void EndOpeningShop()
+        {
+            if (!openingShopActive) return;
+            openingShopActive = false;
+            lastMessage = "初始采购完成。请选择 1～3 种行动，再抽取本回合行动。";
+            Publish();
+        }
+
+        public int GetShopItemPrice(int itemIndex)
+        {
+            if (itemIndex >= 0 && itemIndex <= 3)
+            {
+                PigStageDefinition stage = ResolveStage(GetShopItemStageId(itemIndex));
+                return stage ? stage.value : 0;
+            }
+            return 1;
+        }
+
+        public string GetShopItemStageId(int itemIndex)
+        {
+            if (itemIndex == 0) return "baby";
+            if (itemIndex == 1) return "small";
+            if (itemIndex == 2) return "medium";
+            if (itemIndex == 3) return "large";
+            return null;
+        }
+
+        public void GetHerdCounts(out int baby, out int small, out int medium, out int large, out int totalValue)
+        {
+            baby = 0;
+            small = 0;
+            medium = 0;
+            large = 0;
+            totalValue = 0;
+            IReadOnlyList<PigSnapshot> pigs = Pigs;
+            for (int i = 0; i < pigs.Count; i++)
+            {
+                totalValue += pigs[i].value;
+                if (pigs[i].stageId == "baby") baby++;
+                else if (pigs[i].stageId == "small") small++;
+                else if (pigs[i].stageId == "medium") medium++;
+                else if (pigs[i].stageId == "large") large++;
             }
         }
 
         public void BuyShopItem(int itemIndex)
         {
-            if (!HasRolledAction || currentAction != PigFarmActionType.Shop || awaitingRoundEnd || gameComplete) return;
-            int price = itemIndex == 0 ? 3 : 1;
+            bool opening = openingShopActive;
+            bool normalShop = HasRolledAction && currentAction == PigFarmActionType.Shop;
+            if ((!opening && !normalShop) || awaitingRoundEnd || gameComplete) return;
+
+            int price = GetShopItemPrice(itemIndex);
+            if (price <= 0) { Fail("商品无效。"); return; }
             if (Flow.coins < price) { Fail("金币不足。"); return; }
+
             bool success = true;
-            if (itemIndex == 0) success = herd && herd.AddBabyPig();
-            else if (itemIndex == 1) nutrition++;
-            else if (itemIndex == 2) charms++;
-            else if (itemIndex == 3) vaccines++;
-            else success = false;
+            string boughtName;
+            if (itemIndex >= 0 && itemIndex <= 3)
+            {
+                PigStageDefinition stage = ResolveStage(GetShopItemStageId(itemIndex));
+                success = herd && herd.AddPig(stage);
+                boughtName = StarDisplayName(itemIndex);
+            }
+            else if (itemIndex == 4)
+            {
+                nutrition++;
+                boughtName = "营养剂";
+            }
+            else if (itemIndex == 5)
+            {
+                charms++;
+                boughtName = "护符";
+            }
+            else if (itemIndex == 6)
+            {
+                vaccines++;
+                boughtName = "疫苗";
+            }
+            else
+            {
+                Fail("商品无效。");
+                return;
+            }
+
             if (!success) return;
             gameFlow.AddCoins(-price);
-            lastMessage = "购买成功，花费 " + price + " 金币。";
+            lastMessage = "购买「" + boughtName + "」成功，花费 " + price + " 金币。";
             PigFarmAudioService.Play(PigFarmAudioCue.Trade);
-            ConsumeAction();
+            if (opening)
+            {
+                openingPurchaseCount++;
+                Publish();
+            }
+            else ConsumeAction();
         }
 
         public void SellPig(int pigId)
@@ -312,6 +482,50 @@ namespace PigFarm.Flow
             currentTask = rules.roundTasks[UnityEngine.Random.Range(stageStart, stageEnd)];
         }
 
+
+
+        bool TryGetPig(int pigId, out PigSnapshot result)
+
+        {
+
+            IReadOnlyList<PigSnapshot> pigs = Pigs;
+
+            for (int i = 0; i < pigs.Count; i++)
+
+            {
+
+                if (pigs[i].id != pigId) continue;
+
+                result = pigs[i];
+
+                return true;
+
+            }
+
+            result = default(PigSnapshot);
+
+            return false;
+
+        }
+
+
+
+        bool TryFindBreedablePig(out PigSnapshot result)
+
+        {
+
+            IReadOnlyList<PigSnapshot> pigs = Pigs;
+
+            for (int i = 0; i < pigs.Count; i++) if (pigs[i].canBreed) { result = pigs[i]; return true; }
+
+            result = default(PigSnapshot);
+
+            return false;
+
+        }
+
+
+
         bool TryFindGrowablePig(out PigSnapshot result)
         {
             IReadOnlyList<PigSnapshot> pigs = Pigs;
@@ -328,6 +542,38 @@ namespace PigFarm.Flow
             result = pigs[0];
             for (int i = 1; i < pigs.Count; i++) if (pigs[i].value > result.value) result = pigs[i];
             return true;
+        }
+
+        PigStageDefinition ResolveStage(string stageId)
+        {
+            return herd ? herd.ResolveStage(stageId) : null;
+        }
+
+        static string StarDisplayNameByStage(string stageId)
+
+        {
+
+            if (stageId == "baby") return "小星星";
+
+            if (stageId == "small") return "中星星";
+
+            if (stageId == "medium") return "大星星";
+
+            if (stageId == "large") return "超大星星";
+
+            return "星星";
+
+        }
+
+
+
+        static string StarDisplayName(int itemIndex)
+        {
+            if (itemIndex == 0) return "小星星";
+            if (itemIndex == 1) return "中星星";
+            if (itemIndex == 2) return "大星星";
+            if (itemIndex == 3) return "超大星星";
+            return "星星";
         }
 
         static string ActionName(PigFarmActionType type)

@@ -77,12 +77,34 @@ namespace PigFarm.Pigs
 
         public bool AddBabyPig()
         {
+            return AddPig(config ? config.babyStage : null);
+        }
+
+        public bool AddPig(PigStageDefinition stage)
+        {
             if (state == null) return false;
             bool wasCrowded = state.IsCrowded;
             string failure;
-            if (!state.TryAdd(config.babyStage, out failure)) return Fail(failure);
+            if (!state.TryAdd(stage, out failure)) return Fail(failure);
             Changed(wasCrowded);
             return true;
+        }
+
+        public bool AddPigByStageId(string stageId)
+        {
+            return AddPig(config ? config.GetStage(stageId) : null);
+        }
+
+        public PigStageDefinition ResolveStage(string stageId)
+        {
+            return config ? config.GetStage(stageId) : null;
+        }
+
+        public void ClearHerd()
+        {
+            if (state == null) return;
+            state.Clear();
+            HerdChanged?.Invoke();
         }
 
         public bool RemovePig(int pigId)
@@ -91,7 +113,7 @@ namespace PigFarm.Pigs
                 return false;
             PigSnapshot removed;
             if (!state.TryRemove(pigId, out removed))
-                return Fail("没有找到这只猪");
+                return Fail("没有找到这坪�?");
             HerdChanged?.Invoke();
             return true;
         }

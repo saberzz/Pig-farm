@@ -79,7 +79,7 @@ namespace PigFarm.Pigs
         {
             if (!stage)
             {
-                failure = "猪只配置无效";
+                failure = "��ֻ������Ч";
                 return false;
             }
             if (!CanFitDelta(stage.occupiedCells))
@@ -90,6 +90,11 @@ namespace PigFarm.Pigs
             AddUnchecked(stage);
             failure = null;
             return true;
+        }
+
+        public void Clear()
+        {
+            pigs.Clear();
         }
 
         public bool TryBirth(bool useCharm, out int newbornId, out string failure)
@@ -110,7 +115,7 @@ namespace PigFarm.Pigs
             PigRecord pig = Find(pigId);
             if (pig == null)
             {
-                failure = "没有找到这只猪";
+                failure = "没有找到这只�?";
                 return false;
             }
 

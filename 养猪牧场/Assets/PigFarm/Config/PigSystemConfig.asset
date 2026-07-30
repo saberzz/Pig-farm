@@ -16,7 +16,6 @@ MonoBehaviour:
   crowdingThreshold: 70
   babyStage: {fileID: 11400000, guid: 60f0e2ae6f313904687152b029966a4d, type: 2}
   smallStage: {fileID: 11400000, guid: 45bc8ea58774ba74184a954dbf0e6400, type: 2}
-  startingPigs:
-  - {fileID: 11400000, guid: 60f0e2ae6f313904687152b029966a4d, type: 2}
-  - {fileID: 11400000, guid: 45bc8ea58774ba74184a954dbf0e6400, type: 2}
-  - {fileID: 11400000, guid: 4a9ddc1e9a890904e96293242c1f0dfc, type: 2}
+  mediumStage: {fileID: 11400000, guid: 4a9ddc1e9a890904e96293242c1f0dfc, type: 2}
+  largeStage: {fileID: 11400000, guid: d2a369be0dad2314f801ae455de57ccd, type: 2}
+  startingPigs: []

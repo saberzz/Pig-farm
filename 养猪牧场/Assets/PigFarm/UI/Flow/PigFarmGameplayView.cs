@@ -12,6 +12,7 @@ namespace PigFarm.UI.Flow
     {
         [SerializeField] PigFarmGameSessionController session;
         [SerializeField] PigFarmTutorialPopup tutorial;
+        [SerializeField] PigFarmOpeningShopIntro openingIntro;
         [SerializeField] Text stageText;
         [SerializeField] Text taskText;
         [SerializeField] Text rewardText;
@@ -21,6 +22,10 @@ namespace PigFarm.UI.Flow
         [SerializeField] Text rollRangeText;
         [SerializeField] Text messageText;
         [SerializeField] Image[] stars;
+        [SerializeField] Sprite smallStarSprite;
+        [SerializeField] Sprite mediumStarSprite;
+        [SerializeField] Sprite largeStarSprite;
+        [SerializeField] Sprite hugeStarSprite;
         [SerializeField] Button[] actionButtons;
         [SerializeField] Button confirmButton;
         [SerializeField] GameObject actionPanel;
@@ -57,12 +62,35 @@ namespace PigFarm.UI.Flow
         [SerializeField] GameObject sellScreen;
         [SerializeField] Button sellCloseButton;
         [SerializeField] Button[] sellPigButtons;
+        [SerializeField] Text shopHeaderText;
+        [SerializeField] Text shopVaccineCountText;
+        [SerializeField] Text shopGoldCountText;
+        [SerializeField] Text shopTaskText;
+        [SerializeField] Text shopPurchaseCountText;
+        [SerializeField] Text shopStarCountText;
+        [SerializeField] Text shopTotalValueText;
+        [SerializeField] Text[] shopProductNameTexts;
+        [SerializeField] Image[] shopProductIcons;
+        [SerializeField] Text[] shopProductPriceTexts;
+
+        [SerializeField] PigFarmPenStarSlot[] starSlots;
+
+
+
         Coroutine roundTipRoutine;
+
+        Coroutine starAnimRoutine;
         Coroutine rollRoutine;
         bool initialTutorialCompleted;
+        bool openingShopCompleted;
         bool roundUiReady;
         bool rolling;
+
         bool resultRevealed;
+
+        bool starTargetingActive;
+
+        bool pendingUseItem;
         readonly Color selectedColor = new Color(.91f, .48f, .13f, 1f);
         readonly Color normalColor = new Color(.25f, .40f, .31f, 1f);
 
@@ -101,6 +129,28 @@ namespace PigFarm.UI.Flow
             sellPigButtons = sellButtons;
         }
 
+        public void ConfigureOpeningShop(PigFarmOpeningShopIntro intro, Text header, Text vaccineCount, Text goldCount,
+            Text task, Text purchaseCount, Text starCount, Text totalValue,
+            Text[] productNames, Image[] productIcons, Text[] productPrices,
+            Sprite smallStar, Sprite mediumStar, Sprite largeStar, Sprite hugeStar)
+        {
+            openingIntro = intro;
+            shopHeaderText = header;
+            shopVaccineCountText = vaccineCount;
+            shopGoldCountText = goldCount;
+            shopTaskText = task;
+            shopPurchaseCountText = purchaseCount;
+            shopStarCountText = starCount;
+            shopTotalValueText = totalValue;
+            shopProductNameTexts = productNames;
+            shopProductIcons = productIcons;
+            shopProductPriceTexts = productPrices;
+            smallStarSprite = smallStar;
+            mediumStarSprite = mediumStar;
+            largeStarSprite = largeStar;
+            hugeStarSprite = hugeStar;
+        }
+
         void Start()
         {
             Bind(true);
@@ -111,12 +161,14 @@ namespace PigFarm.UI.Flow
             if (rollResultPanel) rollResultPanel.SetActive(false);
             if (shopScreen) shopScreen.SetActive(false);
             if (sellScreen) sellScreen.SetActive(false);
+            if (openingIntro) openingIntro.Hide();
             roundUiReady = false;
+            openingShopCompleted = false;
             if (tutorial) tutorial.gameObject.SetActive(true);
             Refresh();
         }
 
-        void OnDestroy() { Bind(false); }
+        void OnDestroy() { StopStarIdleAnimations(); Bind(false); }
 
         void Bind(bool bind)
         {
@@ -128,6 +180,7 @@ namespace PigFarm.UI.Flow
                 session.RoundResolved += OnRoundResolved;
                 session.GameCompleted += OnGameCompleted;
                 if (tutorial) tutorial.Completed += OnTutorialCompleted;
+                if (openingIntro) openingIntro.EnterShopRequested += OpenOpeningShop;
             }
             else
             {
@@ -136,6 +189,7 @@ namespace PigFarm.UI.Flow
                 session.RoundResolved -= OnRoundResolved;
                 session.GameCompleted -= OnGameCompleted;
                 if (tutorial) tutorial.Completed -= OnTutorialCompleted;
+                if (openingIntro) openingIntro.EnterShopRequested -= OpenOpeningShop;
             }
             if (!bind) return;
             for (int i = 0; actionButtons != null && i < actionButtons.Length; i++)
@@ -145,7 +199,7 @@ namespace PigFarm.UI.Flow
             }
             if (confirmButton) confirmButton.onClick.AddListener(ConfirmSelection);
             if (primaryActionButton) primaryActionButton.onClick.AddListener(delegate { Click(); session.ExecutePrimaryAction(false); });
-            if (itemActionButton) itemActionButton.onClick.AddListener(delegate { Click(); session.ExecutePrimaryAction(true); });
+            if (itemActionButton) itemActionButton.onClick.AddListener(OnItemActionClicked);
             for (int i = 0; shopButtons != null && i < shopButtons.Length; i++)
             {
                 int index = i;
@@ -153,7 +207,8 @@ namespace PigFarm.UI.Flow
                 {
                     Click();
                     session.BuyShopItem(index);
-                    if (!session.HasRolledAction && shopScreen) shopScreen.SetActive(false);
+                    RefreshShopScreen();
+                    if (!session.IsOpeningShopActive && !session.HasRolledAction && shopScreen) shopScreen.SetActive(false);
                 });
             }
             if (settleRoundButton) settleRoundButton.onClick.AddListener(delegate { Click(); session.ResolveRound(); });
@@ -162,7 +217,7 @@ namespace PigFarm.UI.Flow
             if (restartButton) restartButton.onClick.AddListener(Restart);
             if (tutorialButton) tutorialButton.onClick.AddListener(ShowTutorial);
             if (penActionButton) penActionButton.onClick.AddListener(ExecutePenAction);
-            if (shopCloseButton) shopCloseButton.onClick.AddListener(delegate { Click(); if (shopScreen) shopScreen.SetActive(false); });
+            if (shopCloseButton) shopCloseButton.onClick.AddListener(CloseShop);
             if (sellCloseButton) sellCloseButton.onClick.AddListener(delegate { Click(); if (sellScreen) sellScreen.SetActive(false); });
             for (int i = 0; sellPigButtons != null && i < sellPigButtons.Length; i++)
             {
@@ -178,7 +233,7 @@ namespace PigFarm.UI.Flow
             PigFarmRoundTask task = session.CurrentTask;
             if (stageText) stageText.text = "第" + ChineseNumber(flow.seasonIndex + 1) + "阶段 · 回合" + ChineseNumber(flow.roundInSeason);
             if (taskText) taskText.text = task == null ? "等待任务" : task.title + "\n" + task.description;
-            if (rewardText) rewardText.text = task == null ? string.Empty : "本轮奖励：" + RewardName(task.rewardType) + " × " + task.rewardAmount;
+            if (rewardText) rewardText.text = task == null ? string.Empty : "本局奖励：" + RewardName(task.rewardType) + " × " + task.rewardAmount;
             if (resourceText) resourceText.text = "金币 " + flow.coins + "    疫苗 " + session.Vaccines + "    营养剂 " + session.Nutrition + "    护符 " + session.Charms;
             if (capacityText) capacityText.text = "猪圈占用 " + session.UsedCells + " / " + session.Capacity;
             if (rollRangeText)
@@ -191,38 +246,92 @@ namespace PigFarm.UI.Flow
             RefreshActions();
             RefreshActionPanel();
             RefreshRoundContext();
+            if (shopScreen && shopScreen.activeSelf) RefreshShopScreen();
         }
 
         void RefreshHerd()
+
         {
+
+            EnsureStarSlots();
+
             int babies = 0, small = 0, medium = 0, large = 0, vaccinated = 0;
+
             var pigs = session.Pigs;
+
             for (int i = 0; i < pigs.Count; i++)
+
             {
+
                 if (pigs[i].stageId == "baby") babies++;
+
                 else if (pigs[i].stageId == "small") small++;
+
                 else if (pigs[i].stageId == "medium") medium++;
+
                 else if (pigs[i].stageId == "large") large++;
+
                 if (pigs[i].vaccinated) vaccinated++;
+
             }
-            if (herdText) herdText.text = "猪宝宝 " + babies + "   小猪 " + small + "   中猪 " + medium + "   大猪 " + large + "   已接种 " + vaccinated;
+
+            if (herdText) herdText.text = "小星星 " + babies + "   中星星 " + small + "   大星星 " + medium + "   超大星星 " + large + "   已接种 " + vaccinated;
+
             if (stars != null)
+
             {
-                int visible = session.Rules ? Mathf.Min(stars.Length, session.Rules.displayStarCount) : stars.Length;
-                for (int i = 0; i < stars.Length; i++) stars[i].gameObject.SetActive(i < visible);
+
+                for (int i = 0; i < stars.Length; i++)
+
+                {
+
+                    bool visible = i < pigs.Count;
+
+                    stars[i].gameObject.SetActive(visible);
+
+                    if (!visible) continue;
+
+                    Sprite sprite = StarSpriteForStage(pigs[i].stageId);
+
+                    if (sprite) stars[i].sprite = sprite;
+
+                    stars[i].color = Color.white;
+
+                    stars[i].preserveAspect = true;
+
+                    stars[i].raycastTarget = true;
+
+                    if (starSlots != null && i < starSlots.Length && starSlots[i] && starSlots[i].Button)
+
+                        starSlots[i].Button.interactable = starTargetingActive;
+
+                }
+
             }
+
+        }
+
+
+
+        Sprite StarSpriteForStage(string stageId)
+        {
+            if (stageId == "baby") return smallStarSprite;
+            if (stageId == "small") return mediumStarSprite;
+            if (stageId == "medium") return largeStarSprite;
+            if (stageId == "large") return hugeStarSprite;
+            return smallStarSprite;
         }
 
         void RefreshActions()
         {
-            bool canSelect = !session.HasRolledAction && !session.AwaitingRoundEnd && !session.IsGameComplete;
+            bool canSelect = openingShopCompleted && !session.IsOpeningShopActive && !session.HasRolledAction && !session.AwaitingRoundEnd && !session.IsGameComplete;
             for (int i = 0; actionButtons != null && i < actionButtons.Length; i++)
             {
                 bool selected = session.IsActionSelected((PigFarmActionType)i);
                 Image image = actionButtons[i].GetComponent<Image>();
                 if (image) image.color = selected ? selectedColor : normalColor;
                 Text label = actionButtons[i].GetComponentInChildren<Text>();
-                if (label) label.text = (selected ? "✓ " : "") + ActionName((PigFarmActionType)i);
+                if (label) label.text = (selected ? "? " : "") + ActionName((PigFarmActionType)i);
                 actionButtons[i].interactable = canSelect;
             }
             if (confirmButton)
@@ -244,7 +353,7 @@ namespace PigFarm.UI.Flow
             PigFarmActionType action = session.CurrentAction;
             if (actionTitleText) actionTitleText.text = "行动结果：" + ActionName(action) + " × " + session.CurrentActionRemaining;
             bool isShop = action == PigFarmActionType.Shop && session.HasRolledAction;
-            if (shopPanel) shopPanel.SetActive(isShop);
+            if (shopPanel) shopPanel.SetActive(false);
             if (primaryActionButton) primaryActionButton.gameObject.SetActive(!isShop && session.HasRolledAction);
             if (itemActionButton) itemActionButton.gameObject.SetActive((action == PigFarmActionType.Breed || action == PigFarmActionType.Feed) && session.HasRolledAction);
             if (settleRoundButton) settleRoundButton.gameObject.SetActive(session.AwaitingRoundEnd);
@@ -265,7 +374,8 @@ namespace PigFarm.UI.Flow
         {
             bool tutorialVisible = tutorial && tutorial.gameObject.activeSelf;
             bool tipVisible = roundTipPanel && roundTipPanel.activeSelf;
-            bool unlocked = roundUiReady && !tutorialVisible && !tipVisible;
+            bool introVisible = openingIntro && openingIntro.gameObject.activeSelf;
+            bool unlocked = roundUiReady && openingShopCompleted && !tutorialVisible && !tipVisible && !introVisible && !session.IsOpeningShopActive;
             if (stageTaskSection) stageTaskSection.SetActive(unlocked);
             if (taskContextSection) taskContextSection.SetActive(unlocked);
 
@@ -284,11 +394,11 @@ namespace PigFarm.UI.Flow
             if (contextCounterValue) contextCounterValue.text = session.CurrentActionRemaining + "/" + session.CurrentActionTotal;
             if (contextGuideText)
             {
-                if (selecting) contextGuideText.text = "根据你的选择的行为数量，可能会获得不一样的次数机会哦";
+                if (selecting) contextGuideText.text = "根据你的选择的行动数量，可能会获得不一样的次数机会哦";
                 else if (feed) contextGuideText.text = "选择你需要喂养的小猪";
                 else if (breed) contextGuideText.text = "选择可繁殖的中猪或大猪";
-                else if (shop) contextGuideText.text = "进入商店选择需要购买的猪猪或道具";
-                else if (sell) contextGuideText.text = "进入出售界面选择需要卖出的猪猪";
+                else if (shop) contextGuideText.text = "进入商店选择需要购买的星星或道具";
+                else if (sell) contextGuideText.text = "进入出售界面选择需要卖出的猪";
                 else if (session.AwaitingRoundEnd) contextGuideText.text = "本回合行动完成，请进行回合结算";
                 else contextGuideText.text = "请完成本回合行动";
             }
@@ -299,6 +409,67 @@ namespace PigFarm.UI.Flow
                 if (label) label.text = feed ? "喂养" : breed ? "繁殖" : shop ? "商店" : "出售";
             }
         }
+
+        void RefreshShopScreen()
+        {
+            if (!session || !shopScreen) return;
+            bool opening = session.IsOpeningShopActive;
+            PigFarmRoundTask task = session.CurrentTask;
+            if (shopHeaderText) shopHeaderText.text = opening ? "初始采购" : "商店";
+            if (shopVaccineCountText) shopVaccineCountText.text = session.Vaccines.ToString();
+            if (shopGoldCountText) shopGoldCountText.text = session.Flow.coins.ToString();
+            if (shopTaskText)
+            {
+                if (task == null) shopTaskText.text = "当前暂无任务";
+                else shopTaskText.text = task.title + "\n" + task.description;
+            }
+            if (shopPurchaseCountText)
+            {
+                shopPurchaseCountText.text = opening
+                    ? "购买次数  " + session.OpeningPurchaseCount
+                    : "购买次数  " + session.CurrentActionRemaining + "/" + session.CurrentActionTotal;
+            }
+            int baby, small, medium, large, totalValue;
+            session.GetHerdCounts(out baby, out small, out medium, out large, out totalValue);
+            if (shopStarCountText)
+                shopStarCountText.text = "小星星 " + baby + "\n中星星 " + small + "\n大星星 " + medium + "\n超大星星 " + large;
+            if (shopTotalValueText) shopTotalValueText.text = "总价值  " + totalValue;
+
+            string[] names = { "小星星", "中星星", "大星星", "超大星星", "营养剂", "护符", "疫苗" };
+            for (int i = 0; shopButtons != null && i < shopButtons.Length; i++)
+            {
+                int price = session.GetShopItemPrice(i);
+                if (shopProductNameTexts != null && i < shopProductNameTexts.Length && shopProductNameTexts[i])
+                    shopProductNameTexts[i].text = names[i];
+                if (shopProductPriceTexts != null && i < shopProductPriceTexts.Length && shopProductPriceTexts[i])
+                    shopProductPriceTexts[i].text = price + " 金币";
+                shopButtons[i].interactable = session.Flow.coins >= price &&
+                    (opening || (session.HasRolledAction && session.CurrentAction == PigFarmActionType.Shop));
+            }
+            if (shopCloseButton)
+            {
+                Text label = shopCloseButton.GetComponentInChildren<Text>();
+                if (label) label.text = opening ? "完成采购" : "离开商店";
+            }
+        }
+
+        void OnItemActionClicked()
+
+        {
+
+            Click();
+
+            if (!session) return;
+
+            if (session.HasRolledAction && (session.CurrentAction == PigFarmActionType.Feed || session.CurrentAction == PigFarmActionType.Breed))
+
+                EnterStarTargeting(true);
+
+            else session.ExecutePrimaryAction(true);
+
+        }
+
+
 
         void ConfirmSelection()
         {
@@ -348,6 +519,7 @@ namespace PigFarm.UI.Flow
             {
                 shopScreen.transform.SetAsLastSibling();
                 shopScreen.SetActive(true);
+                RefreshShopScreen();
             }
             else if (session.CurrentAction == PigFarmActionType.Sell && sellScreen)
             {
@@ -366,8 +538,18 @@ namespace PigFarm.UI.Flow
                 sellPigButtons[i].gameObject.SetActive(visible);
                 if (!visible) continue;
                 Text label = sellPigButtons[i].GetComponentInChildren<Text>();
-                if (label) label.text = pigs[i].stageName + "\n价值 " + pigs[i].value + " 金币";
+                string starName = StarNameForStage(pigs[i].stageId);
+                if (label) label.text = starName + "\n价值 " + pigs[i].value + " 金币";
             }
+        }
+
+        static string StarNameForStage(string stageId)
+        {
+            if (stageId == "baby") return "小星星";
+            if (stageId == "small") return "中星星";
+            if (stageId == "medium") return "大星星";
+            if (stageId == "large") return "超大星星";
+            return "星星";
         }
 
         void SellPigAt(int index)
@@ -410,22 +592,318 @@ namespace PigFarm.UI.Flow
         }
 
         void ExecutePenAction()
+
         {
+
             Click();
+
             if (!session) return;
+
             if (session.CurrentAction == PigFarmActionType.Shop && shopScreen)
+
             {
+
+                ClearStarTargeting();
+
                 shopScreen.transform.SetAsLastSibling();
+
                 shopScreen.SetActive(true);
+
+                RefreshShopScreen();
+
             }
+
             else if (session.CurrentAction == PigFarmActionType.Sell && sellScreen)
+
             {
+
+                ClearStarTargeting();
+
                 RefreshSellCards();
+
                 sellScreen.transform.SetAsLastSibling();
+
                 sellScreen.SetActive(true);
+
             }
+
+            else if (session.CurrentAction == PigFarmActionType.Feed || session.CurrentAction == PigFarmActionType.Breed)
+
+            {
+
+                EnterStarTargeting(false);
+
+            }
+
             else session.ExecutePrimaryAction(false);
+
         }
+
+
+
+        void EnterStarTargeting(bool useItem)
+
+        {
+
+            if (!session || !session.HasRolledAction) return;
+
+            if (session.CurrentAction != PigFarmActionType.Feed && session.CurrentAction != PigFarmActionType.Breed) return;
+
+            starTargetingActive = true;
+
+            pendingUseItem = useItem;
+
+            if (messageText)
+
+            {
+
+                if (session.CurrentAction == PigFarmActionType.Feed)
+
+                    messageText.text = useItem ? "请选择要喂养的星星（将使用营养剂）" : "请选择要喂养的星星";
+
+                else
+
+                    messageText.text = useItem ? "请选择要繁殖的星星（将使用护符）" : "请选择要繁殖的大星星或超大星星";
+
+            }
+
+            RefreshHerd();
+
+        }
+
+
+
+        void ClearStarTargeting()
+
+        {
+
+            starTargetingActive = false;
+
+            pendingUseItem = false;
+
+        }
+
+
+
+        void OnStarClicked(int index)
+
+        {
+
+            Click();
+
+            if (!session || !starTargetingActive) return;
+
+            if (index < 0 || index >= session.Pigs.Count) return;
+
+            int pigId = session.Pigs[index].id;
+
+            bool success = false;
+
+            if (session.CurrentAction == PigFarmActionType.Feed)
+
+                success = session.ExecuteFeedOnPig(pigId, pendingUseItem);
+
+            else if (session.CurrentAction == PigFarmActionType.Breed)
+
+                success = session.ExecuteBreedOnPig(pigId, pendingUseItem);
+
+
+
+            if (success && starSlots != null && index < starSlots.Length && starSlots[index])
+
+                starSlots[index].PlayFloat();
+
+
+
+            if (!session.HasRolledAction) ClearStarTargeting();
+
+            else
+
+            {
+
+                // keep targeting for remaining actions, but reset item intent after one use
+
+                pendingUseItem = false;
+
+            }
+
+            Refresh();
+
+        }
+
+
+
+        void EnsureStarSlots()
+
+        {
+
+            if (stars == null || stars.Length == 0) return;
+
+            if (starSlots == null || starSlots.Length != stars.Length) starSlots = new PigFarmPenStarSlot[stars.Length];
+
+            for (int i = 0; i < stars.Length; i++)
+
+            {
+
+                if (!stars[i]) continue;
+
+                PigFarmPenStarSlot slot = starSlots[i];
+
+                if (!slot) slot = stars[i].GetComponent<PigFarmPenStarSlot>();
+
+                if (!slot) slot = stars[i].gameObject.AddComponent<PigFarmPenStarSlot>();
+
+                Button button = stars[i].GetComponent<Button>();
+
+                if (!button) button = stars[i].gameObject.AddComponent<Button>();
+
+                button.targetGraphic = stars[i];
+
+                stars[i].raycastTarget = true;
+
+                button.transition = Selectable.Transition.None;
+
+                slot.Configure(i, button, stars[i]);
+
+                starSlots[i] = slot;
+
+                button.onClick.RemoveAllListeners();
+
+                int index = i;
+
+                button.onClick.AddListener(delegate { OnStarClicked(index); });
+
+            }
+
+        }
+
+
+
+        void StartStarIdleAnimations()
+
+        {
+
+            if (starAnimRoutine != null) StopCoroutine(starAnimRoutine);
+
+            starAnimRoutine = StartCoroutine(StarIdleAnimationLoop());
+
+        }
+
+
+
+        void StopStarIdleAnimations()
+
+        {
+
+            if (starAnimRoutine != null)
+
+            {
+
+                StopCoroutine(starAnimRoutine);
+
+                starAnimRoutine = null;
+
+            }
+
+            if (starSlots == null) return;
+
+            for (int i = 0; i < starSlots.Length; i++) if (starSlots[i]) starSlots[i].StopFloat();
+
+        }
+
+
+
+        IEnumerator StarIdleAnimationLoop()
+
+        {
+
+            yield return null;
+
+            PlayVisibleStarFloats(true);
+
+            while (true)
+
+            {
+
+                yield return new WaitForSecondsRealtime(5f);
+
+                PlayVisibleStarFloats(false);
+
+            }
+
+        }
+
+
+
+        void PlayVisibleStarFloats(bool allVisible)
+
+        {
+
+            if (stars == null || starSlots == null || !session) return;
+
+            var pigs = session.Pigs;
+
+            var candidates = new System.Collections.Generic.List<int>();
+
+            for (int i = 0; i < stars.Length && i < pigs.Count; i++)
+
+            {
+
+                if (!stars[i] || !stars[i].gameObject.activeInHierarchy) continue;
+
+                candidates.Add(i);
+
+            }
+
+            if (candidates.Count == 0) return;
+
+            if (allVisible)
+
+            {
+
+                for (int i = 0; i < candidates.Count; i++)
+
+                {
+
+                    int idx = candidates[i];
+
+                    if (starSlots[idx]) starSlots[idx].PlayFloat();
+
+                }
+
+                return;
+
+            }
+
+            int count = Mathf.Min(3, candidates.Count);
+
+            for (int i = 0; i < count; i++)
+
+            {
+
+                int pick = Random.Range(i, candidates.Count);
+
+                int tmp = candidates[i];
+
+                candidates[i] = candidates[pick];
+
+                candidates[pick] = tmp;
+
+            }
+
+            for (int i = 0; i < count; i++)
+
+            {
+
+                int idx = candidates[i];
+
+                if (starSlots[idx]) starSlots[idx].PlayFloat();
+
+            }
+
+        }
+
+
 
         void ShowRoundTip()
         {
@@ -446,9 +924,56 @@ namespace PigFarm.UI.Flow
         {
             yield return new WaitForSecondsRealtime(2f);
             if (roundTipPanel) roundTipPanel.SetActive(false);
-            roundUiReady = true;
-            Refresh();
+            if (!openingShopCompleted)
+            {
+                ShowOpeningIntro();
+            }
+            else
+            {
+                roundUiReady = true;
+                Refresh();
+                StartStarIdleAnimations();
+            }
             roundTipRoutine = null;
+        }
+
+        void ShowOpeningIntro()
+        {
+            roundUiReady = false;
+            if (openingIntro)
+            {
+                openingIntro.Show("欢迎来到养猪牧场！\n请使用初始金币购买星星与道具，\n购买的星星会放入猪圈中。");
+            }
+            else OpenOpeningShop();
+            Refresh();
+        }
+
+        void OpenOpeningShop()
+        {
+            if (!session) return;
+            session.BeginOpeningShop();
+            if (shopScreen)
+            {
+                shopScreen.transform.SetAsLastSibling();
+                shopScreen.SetActive(true);
+                RefreshShopScreen();
+            }
+            Refresh();
+        }
+
+        void CloseShop()
+        {
+            Click();
+            if (!shopScreen) return;
+            if (session && session.IsOpeningShopActive)
+            {
+                session.EndOpeningShop();
+                openingShopCompleted = true;
+                roundUiReady = true;
+            }
+            shopScreen.SetActive(false);
+            Refresh();
+            if (openingShopCompleted && roundUiReady) StartStarIdleAnimations();
         }
 
         static string ChineseNumber(int value)
@@ -470,10 +995,10 @@ namespace PigFarm.UI.Flow
 
         static string ActionDescription(PigFarmActionType type)
         {
-            if (type == PigFarmActionType.Breed) return "中猪或大猪可生育猪宝宝；护符可让新生猪直接成为小猪。";
-            if (type == PigFarmActionType.Feed) return "选择可成长的猪提升 1 级；营养剂可以连续成长 2 级。";
-            if (type == PigFarmActionType.Shop) return "每次购买消耗一次行动。猪宝宝 3 金币，道具均为 1 金币。";
-            return "自动卖出当前价值最高的猪，并立即获得对应金币。";
+            if (type == PigFarmActionType.Breed) return "中猪或大猪可生育小星星；护符可让新生星星直接成为中星星。";
+            if (type == PigFarmActionType.Feed) return "选择可成长的星星提升 1 级；营养剂可以连续成长 2 级。";
+            if (type == PigFarmActionType.Shop) return "每次购买消耗一次行动。星星按价值售卖，道具均为 1 金币。";
+            return "自动卖出当前价值最高的星星，并立刻获得对应金币。";
         }
 
         static string RewardName(PigFarmRewardType type)
